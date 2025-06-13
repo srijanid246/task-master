@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<title>Task Master</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+<script>
+    let editedTasks = new Set();
+
+    function enableEdit(id) {
+        const textCell = document.getElementById(`task-content-${id}`);
+        const inputCell = document.getElementById(`task-input-${id}`);
+        const button = document.getElementById(`edit-btn-${id}`);
+
+        textCell.style.display = 'none';
+        inputCell.style.display = 'inline';
+        button.textContent = 'Save';
+        button.onclick = () => saveEdit(id);
+
+        editedTasks.add(id);
+        toggleSaveAll();
+    }
+
+    function saveEdit(id) {
+        const inputField = document.getElementById(`task-input-field-${id}`);
+        const newContent = inputField.value.trim();
+
+        if (!newContent) {
+            alert("Task content cannot be empty.");
+            return;
+        }
+
+        fetch(`/update_task/${id}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ content: newContent })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const textCell = document.getElementById(`task-content-${id}`);
+                const inputCell = document.getElementById(`task-input-${id}`);
+                const button = document.getElementById(`edit-btn-${id}`);
+
+                textCell.textContent = data.new_content;
+                textCell.style.display = 'inline';
+                inputCell.style.display = 'none';
+                button.textContent = 'Update';
+                button.onclick = () => enableEdit(id);
+
+                editedTasks.delete(id);
+                toggleSaveAll();
+            } else {
+                alert(data.error);
+            }
+        });
+    }
+
+    function toggleSaveAll() {
+        const saveAllBtn = document.getElementById("save-all-btn");
+        if (editedTasks.size > 1) {
+            saveAllBtn.style.display = 'inline';
+        } else {
+            saveAllBtn.style.display = 'none';
+        }
+    }
+
+    function saveAll() {
+        if (editedTasks.size === 0) return;
+
+        const updates = [];
+        editedTasks.forEach(id => {
+            const inputField = document.getElementById(`task-input-field-${id}`);
+            const newContent = inputField.value.trim();
+            if (newContent) {
+                updates.push({ id, content: newContent });
+            }
+        });
+
+        fetch(`/batch_update`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ updates })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                data.updated.forEach(item => {
+                    const textCell = document.getElementById(`task-content-${item.id}`);
+                    const inputCell = document.getElementById(`task-input-${item.id}`);
+                    const button = document.getElementById(`edit-btn-${item.id}`);
+
+                    textCell.textContent = item.content;
+                    textCell.style.display = 'inline';
+                    inputCell.style.display = 'none';
+                    button.textContent = 'Update';
+                    button.onclick = () => enableEdit(item.id);
+                });
+
+                editedTasks.clear();
+                toggleSaveAll();
+            } else {
+                alert("Error saving all updates");
+            }
+        });
+    }
+
+    function deleteTask(id) {
+        if (!confirm("Delete this task?")) return;
+
+        fetch(`/delete_task/${id}`, { method: "POST" })
+        .then(response => response.json())
+        .then(data => {
+            const row = document.getElementById(`task-row-${id}`);
+            if (data.success || data.already_deleted) {
+                if (data.already_deleted) {
+                    alert("Task already deleted");
+                }
+                if (row) {
+                    row.classList.add("fade-out");
+                    setTimeout(() => row.remove(), 500);
+                }
+            } else {
+                alert("Error deleting task: " + data.error);
+            }
+        });
+    }
+</script>
+{% endblock %}
+
+{% block body %}
+<div class="content">
+    <h1>Task Master</h1>
+
+    <form action="/" method="POST" class="add-form">
+        <input type="text" name="content" placeholder="Enter a task" required>
+        <input type="submit" value="Add Task">
+    </form>
+
+    <button id="save-all-btn" onclick="saveAll()">Save All</button>
+
+    {% if tasklist %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Task</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for task in tasklist %}
+                <tr id="task-row-{{ task.id }}">
+                    <td>
+                        <span id="task-content-{{ task.id }}">{{ task.content }}</span>
+                        <span id="task-input-{{ task.id }}" style="display:none;">
+                            <input type="text" id="task-input-field-{{ task.id }}" value="{{ task.content }}">
+                        </span>
+                    </td>
+                    <td>{{ task.date_created.strftime('%Y-%m-%d') }}</td>
+                    <td>{{ task.date_created.strftime('%H:%M:%S') }}</td>
+                    <td>
+                        <button class="update" id="edit-btn-{{ task.id }}" onclick="enableEdit({{ task.id }})">Update</button>
+                        <button class="delete" onclick="deleteTask({{ task.id }})">Delete</button>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+        <p>No tasks found. Add one above!</p>
+    {% endif %}
+</div>
+{% endblock %}
