@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<title>Task Master V2.0 Beta</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+<script>
+    function enableInlineEdit(id) {
+        const textSpan = document.getElementById(`task-content-${id}`);
+        const inputWrapper = document.getElementById(`task-input-${id}`);
+        const inputField = document.getElementById(`task-input-field-${id}`);
+        const saveBtn = document.getElementById(`save-btn-${id}`);
+
+        textSpan.style.display = 'none';
+        inputWrapper.style.display = 'inline';
+        inputField.focus();
+        saveBtn.style.display = 'inline';
+    }
+
+    function saveInlineEdit(id) {
+        const inputField = document.getElementById(`task-input-field-${id}`);
+        const newContent = inputField.value.trim();
+        if (!newContent) {
+            alert("Task content cannot be empty.");
+            return;
+        }
+
+        fetch(`/update_task/${id}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: newContent })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const textSpan = document.getElementById(`task-content-${id}`);
+                const inputWrapper = document.getElementById(`task-input-${id}`);
+                const saveBtn = document.getElementById(`save-btn-${id}`);
+
+                textSpan.textContent = data.new_content;
+                textSpan.style.display = 'inline';
+                inputWrapper.style.display = 'none';
+                saveBtn.style.display = 'none';
+            } else {
+                alert(data.error);
+            }
+        });
+    }
+
+    function deleteTask(id) {
+        if (!confirm("Delete this task?")) return;
+        fetch(`/delete_task/${id}`, { method: "POST" })
+        .then(response => response.json())
+        .then(data => {
+            const row = document.getElementById(`task-row-${id}`);
+            if (data.success || data.already_deleted) {
+                if (row) {
+                    row.classList.add("fade-out");
+                    setTimeout(() => row.remove(), 500);
+                }
+            } else {
+                alert("Error deleting task: " + data.error);
+            }
+        });
+    }
+</script>
+{% endblock %}
+
+{% block body %}
+<div class="content">
+    <h1>Task Master</h1>
+
+    <form action="/" method="POST" class="add-form">
+        <input type="text" name="content" placeholder="Enter a task" required>
+        <input type="submit" value="Add Task">
+    </form>
+
+    {% if tasklist %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Task</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for task in tasklist %}
+                <tr id="task-row-{{ task.id }}">
+                    <td>
+                        <span id="task-content-{{ task.id }}" onclick="enableInlineEdit({{ task.id }})" style="cursor:pointer;">
+                            {{ task.content }}
+                        </span>
+                        <span id="task-input-{{ task.id }}" style="display:none;">
+                            <input type="text" id="task-input-field-{{ task.id }}" value="{{ task.content }}">
+                        </span>
+                        <button id="save-btn-{{ task.id }}" style="display:none;" onclick="saveInlineEdit({{ task.id }})">&#10003;</button>
+                    </td>
+                    <td>{{ task.date_created.strftime('%Y-%m-%d') }}</td>
+                    <td>{{ task.date_created.strftime('%H:%M:%S') }}</td>
+                    <td>
+                        <button class="delete" onclick="deleteTask({{ task.id }})">Delete</button>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+        <p>No tasks found. Add one above!</p>
+    {% endif %}
+</div>
+{% endblock %}
