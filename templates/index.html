@@ -62,11 +62,23 @@
             }
         });
     }
+    function detectDeviceType() {
+        const isMobile = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const messageDiv = document.getElementById("device-message");
+
+        if (messageDiv) {
+            messageDiv.textContent = isMobile 
+                ? "📱 Application running on phone"
+                : "💻 Application running on laptop";
+        }
+    }
+    window.addEventListener("DOMContentLoaded", detectDeviceType);
 </script>
 {% endblock %}
 
 {% block body %}
 <div class="content">
+<div id="device-message" style="margin-bottom: 10px; font-weight: bold;"></div>
     <h1>Task Master</h1>
 
     <form action="/" method="POST" class="add-form">

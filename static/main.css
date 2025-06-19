@@ -204,3 +204,7 @@ button[id^="save-btn"] {
     }
     
 }
+#device-message {
+    font-size: 18px;
+    color: #555;
+}

@@ -42,7 +42,7 @@ def index():
         sort = request.args.get("sort", "default")
         by = request.args.get("by", "content")
         page = request.args.get("page", 1, type=int)
-        per_page = request.args.get("per_page", 7, type=int)
+        per_page = 7
 
         query = Todo.query
         if sort == "asc" and by == "content":
