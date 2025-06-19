@@ -79,8 +79,18 @@
         <table>
             <thead>
                 <tr>
-                    <th>Task</th>
-                    <th>Date</th>
+                    <th>
+                        Task
+                        <a href="{{ url_for('index', sort='asc' if by != 'content' or sort == 'default' else 'default', by='content') }}">
+                            <button>&#x21C5;</button>
+                        </a>
+                    </th>
+                    <th>
+                        Date
+                        <a href="{{ url_for('index', sort='asc' if by != 'date' or sort == 'default' else 'default', by='date') }}">
+                            <button>&#x21C5;</button>
+                        </a>
+                    </th>
                     <th>Time</th>
                     <th>Actions</th>
                 </tr>
@@ -106,6 +116,23 @@
             {% endfor %}
             </tbody>
         </table>
+    </div>
+
+    <!-- PAGINATION CONTROLS -->
+    <div class="pagination">
+        {% if pagination.has_prev %}
+            <a href="{{ url_for('index', page=pagination.prev_num, sort=sort, by=by) }}">
+                <button>&laquo; Prev</button>
+            </a>
+        {% endif %}
+
+        <span>Page {{ pagination.page }} of {{ pagination.pages }}</span>
+
+        {% if pagination.has_next %}
+            <a href="{{ url_for('index', page=pagination.next_num, sort=sort, by=by) }}">
+                <button>Next &raquo;</button>
+            </a>
+        {% endif %}
     </div>
     {% else %}
         <p>No tasks found. Add one above!</p>
