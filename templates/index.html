@@ -73,6 +73,35 @@
         }
     }
     window.addEventListener("DOMContentLoaded", detectDeviceType);
+
+    let draggedTaskId = null;
+
+function handleDragStart(event, taskId) {
+    draggedTaskId = taskId;
+}
+
+function handleDragOver(event) {
+    event.preventDefault(); // Required to allow drop
+}
+
+function handleDrop(event, targetTaskId) {
+    event.preventDefault();
+    if (draggedTaskId === null || draggedTaskId === targetTaskId) return;
+
+    fetch("/reorder_tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dragged_id: draggedTaskId, target_id: targetTaskId })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload(); // Reload to reflect new order
+        } else {
+            alert("Reordering failed.");
+        }
+    });
+}
 </script>
 {% endblock %}
 
@@ -109,7 +138,11 @@
             </thead>
             <tbody>
             {% for task in tasklist %}
-                <tr id="task-row-{{ task.id }}">
+                <tr id="task-row-{{ task.id }}" 
+                    draggable="true" 
+                    ondragstart="handleDragStart(event, '{{ task.id }}')" 
+                    ondragover="handleDragOver(event)" 
+                    ondrop="handleDrop(event, '{{ task.id }}')">
                     <td>
                         <span id="task-content-{{ task.id }}" onclick="enableInlineEdit({{ task.id }})" style="cursor:pointer;">
                             {{ task.content }}
