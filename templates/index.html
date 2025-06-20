@@ -35,7 +35,6 @@ function saveInlineEdit(id) {
             const textSpan = document.getElementById(`task-content-${id}`);
             const inputWrapper = document.getElementById(`task-input-${id}`);
             const saveBtn = document.getElementById(`save-btn-${id}`);
-
             textSpan.textContent = data.new_content;
             textSpan.style.display = 'inline';
             inputWrapper.style.display = 'none';
@@ -67,7 +66,6 @@ function deleteTask(id) {
 function detectDeviceType() {
     const isMobile = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     const messageDiv = document.getElementById("device-message");
-
     if (messageDiv) {
         messageDiv.textContent = isMobile 
             ? "📱 Application running on phone"
@@ -76,11 +74,13 @@ function detectDeviceType() {
 }
 window.addEventListener("DOMContentLoaded", detectDeviceType);
 
+// Drag and Drop Field
 let draggedField = { id: null, field: null };
 function handleFieldDragStart(event, taskId, field) {
     draggedField = { id: taskId, field };
     event.dataTransfer.setData("text/plain", JSON.stringify(draggedField));
 }
+
 function handleFieldDrop(event, targetId) {
     event.preventDefault();
     const { id: sourceId, field } = JSON.parse(event.dataTransfer.getData("text/plain"));
@@ -109,26 +109,14 @@ function handleFieldDrop(event, targetId) {
         <input type="text" name="content" placeholder="Enter a task" required>
         <input type="submit" value="Add Task">
     </form>
-    <form action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data" class="upload-form">
-        <input type="file" name="file" accept=".csv,.xlsx" required>
-        <input type="submit" value="Upload">
-    </form>
 
     {% if tasklist %}
     <div class="table-container">
         <table>
             <thead>
                 <tr>
-                    <th>Task
-                        <a href="{{ url_for('index', sort='asc' if by != 'content' or sort == 'default' else 'default', by='content') }}">
-                            <button>&#x21C5;</button>
-                        </a>
-                    </th>
-                    <th>Date
-                        <a href="{{ url_for('index', sort='asc' if by != 'date' or sort == 'default' else 'default', by='date') }}">
-                            <button>&#x21C5;</button>
-                        </a>
-                    </th>
+                    <th>Task <a href="{{ url_for('index', sort='asc' if by != 'content' or sort == 'default' else 'default', by='content') }}"><button>&#x21C5;</button></a></th>
+                    <th>Date <a href="{{ url_for('index', sort='asc' if by != 'date' or sort == 'default' else 'default', by='date') }}"><button>&#x21C5;</button></a></th>
                     <th>Time</th>
                     <th>Actions</th>
                 </tr>
@@ -136,26 +124,44 @@ function handleFieldDrop(event, targetId) {
             <tbody>
             {% for task in tasklist %}
                 <tr id="task-row-{{ task.id }}">
+                    <!-- Task Name (Inline Edit + Drag) -->
                     <td draggable="true"
                         ondragstart="handleFieldDragStart(event, {{ task.id }}, 'content')"
                         ondragover="event.preventDefault()"
                         ondrop="handleFieldDrop(event, {{ task.id }})">
-                        {{ task.content }}
+                        
+                        <span id="task-content-{{ task.id }}" 
+                              style="cursor: pointer;" 
+                              ondblclick="enableInlineEdit({{ task.id }})">
+                            {{ task.content }}
+                        </span>
+                        
+                        <span id="task-input-{{ task.id }}" style="display:none;">
+                            <input type="text" id="task-input-field-{{ task.id }}" value="{{ task.content }}">
+                        </span>
+                        <button id="save-btn-{{ task.id }}" 
+                                style="display:none;" 
+                                onClick="saveInlineEdit({{ task.id }})">✅</button>
                     </td>
+
+                    <!-- Date (Drag and Drop) -->
                     <td draggable="true"
                         ondragstart="handleFieldDragStart(event, {{ task.id }}, 'date')"
                         ondragover="event.preventDefault()"
                         ondrop="handleFieldDrop(event, {{ task.id }})">
                         {{ task.date_created.strftime('%Y-%m-%d') }}
                     </td>
+
+                    <!-- Time (Drag and Drop) -->
                     <td draggable="true"
                         ondragstart="handleFieldDragStart(event, {{ task.id }}, 'time')"
                         ondragover="event.preventDefault()"
                         ondrop="handleFieldDrop(event, {{ task.id }})">
                         {{ task.date_created.strftime('%H:%M:%S') }}
                     </td>
+
                     <td>
-                        <button class="delete"onclick="deleteTask({{ task.id }})">Delete</button>
+                        <button class="delete" onClick="deleteTask({{ task.id }})">Delete</button>
                     </td>
                 </tr>
             {% endfor %}
@@ -163,6 +169,7 @@ function handleFieldDrop(event, targetId) {
         </table>
     </div>
 
+    <!-- PAGINATION CONTROLS -->
     <div class="pagination">
         {% if pagination.has_prev %}
             <a href="{{ url_for('index', page=pagination.prev_num, sort=sort, by=by) }}">

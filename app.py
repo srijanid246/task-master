@@ -1,12 +1,14 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timezone
-import pandas as pd
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
 
 # INITIALIZING THE APP
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:srij%40%40post@localhost:5432/test'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 db = SQLAlchemy(app)
 
 class Todo(db.Model):
@@ -156,46 +158,6 @@ def replace_task_field():
         )
     db.session.commit()
     return jsonify({"success": True})
-
-@app.route("/upload_file", methods=["POST"])
-def upload_file():
-    file = request.files.get("file")
-    if not file:
-        return "No file uploaded.", 400
-
-    import pandas as pd
-    from datetime import datetime, timezone
-
-    try:
-        df = pd.read_excel(file)
-
-        for _, row in df.iterrows():
-            content = str(row["content"])
-            date_str = str(row["date"])
-            time_str = str(row["time"])
-
-            # Fix any malformed date strings like "2025=06-21"
-            date_str = date_str.replace("=", "-")
-
-            # Parse the date and time
-            try:
-                parsed_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-            except ValueError:
-                return f"Invalid date format: {date_str}", 400
-            parsed_time = datetime.strptime(time_str, "%H:%M:%S").time()
-
-            combined_dt = datetime.combine(parsed_date, parsed_time, tzinfo=timezone.utc)
-
-            new_task = Todo(
-                content=content,
-                date_created=combined_dt
-            )
-            db.session.add(new_task)
-
-        db.session.commit()
-        return redirect(url_for("index"))
-    except Exception as e:
-        return f"Error processing file: {str(e)}", 500
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5678)
