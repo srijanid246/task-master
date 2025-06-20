@@ -1,8 +1,10 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timezone
+import pandas as pd
 
-# INITIALIZING THE CODE.
+
+# INITIALIZING THE APP
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:srij%40%40post@localhost:5432/test'
 db = SQLAlchemy(app)
@@ -44,7 +46,6 @@ def index():
         by = request.args.get("by", "content")
         page = request.args.get("page", 1, type=int)
         per_page = 7
-
         query = Todo.query
         if sort == "asc" and by == "content":
             query = query.order_by(Todo.content.asc())
@@ -56,10 +57,8 @@ def index():
             query = query.order_by(Todo.date_created.desc())
         else:
             query = query.order_by(Todo.order.asc())
-
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
         tasks = pagination.items
-
         return render_template("index.html", tasklist=tasks, sort=sort, by=by, pagination=pagination)
 
 @app.route("/update_task/<int:id>", methods=["POST"])
@@ -84,7 +83,6 @@ def batch_update():
         if task:
             task.content = item["content"]
             updated.append({"id": task.id, "content": task.content})
-    
     db.session.commit()
     return jsonify({"success": True, "updated": updated})
 
@@ -100,7 +98,7 @@ def delete_task(id):
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
-    
+
 @app.route("/reorder_tasks", methods=["POST"])
 def reorder_tasks():
     data = request.get_json()
@@ -113,24 +111,91 @@ def reorder_tasks():
     if not dragged or not target:
         return jsonify({"success": False, "error": "Invalid task IDs"})
 
-    # Get all tasks ordered
     all_tasks = Todo.query.order_by(Todo.order.asc()).all()
     task_list = [t for t in all_tasks if t.id != dragged.id]
 
-    # Find index to insert
     target_index = next((i for i, t in enumerate(task_list) if t.id == target.id), None)
     if target_index is None:
         return jsonify({"success": False, "error": "Target not found"})
 
-    # Insert dragged task before target
     task_list.insert(target_index, dragged)
 
-    # Reassign order values
     for idx, task in enumerate(task_list):
         task.order = idx
 
     db.session.commit()
     return jsonify({"success": True})
+
+
+@app.route("/replace_task_field", methods=["POST"])
+def replace_task_field():
+    data = request.get_json()
+    source_id = data.get("source_id")
+    target_id = data.get("target_id")
+    field = data.get("field")
+
+    source = Todo.query.get(source_id)
+    target = Todo.query.get(target_id)
+
+    if not source or not target or field not in ["content", "date", "time"]:
+        return jsonify({"success": False, "error": "Invalid input"})
+
+    if field == "content":
+        target.content = source.content
+    elif field == "date":
+        target.date_created = datetime.combine(
+            source.date_created.date(),
+            target.date_created.time(),
+            tzinfo=target.date_created.tzinfo
+        )
+    elif field == "time":
+        target.date_created = datetime.combine(
+            target.date_created.date(),
+            source.date_created.time(),
+            tzinfo=target.date_created.tzinfo
+        )
+    db.session.commit()
+    return jsonify({"success": True})
+
+@app.route("/upload_file", methods=["POST"])
+def upload_file():
+    file = request.files.get("file")
+    if not file:
+        return "No file uploaded.", 400
+
+    import pandas as pd
+    from datetime import datetime, timezone
+
+    try:
+        df = pd.read_excel(file)
+
+        for _, row in df.iterrows():
+            content = str(row["content"])
+            date_str = str(row["date"])
+            time_str = str(row["time"])
+
+            # Fix any malformed date strings like "2025=06-21"
+            date_str = date_str.replace("=", "-")
+
+            # Parse the date and time
+            try:
+                parsed_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            except ValueError:
+                return f"Invalid date format: {date_str}", 400
+            parsed_time = datetime.strptime(time_str, "%H:%M:%S").time()
+
+            combined_dt = datetime.combine(parsed_date, parsed_time, tzinfo=timezone.utc)
+
+            new_task = Todo(
+                content=content,
+                date_created=combined_dt
+            )
+            db.session.add(new_task)
+
+        db.session.commit()
+        return redirect(url_for("index"))
+    except Exception as e:
+        return f"Error processing file: {str(e)}", 500
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5678)
