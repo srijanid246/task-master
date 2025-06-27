@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 
+
 {% block head %}
 <title>Task Master V2.0 Beta</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
@@ -102,6 +103,69 @@ function handleDrop(event, targetTaskId) {
         }
     });
 }
+document.addEventListener('DOMContentLoaded', function() {
+
+    target = document.body;
+
+    target = document.getElementById("tasktable");
+
+    alldivelements = document.getElementsByTagName("div");    
+    for(let i =0; i<alldivelements.length;i++){
+        console.log ("Element - " + alldivelements[i].id + " " + alldivelements[i].name);
+    }
+
+    target.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        target.style.backgroundColor = '#e0f7fa';  // Visual feedback
+        target.style.border = 'solid 3px #FF0000';
+    });
+
+    target.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        target.style.backgroundColor = '';  // Reset background
+        target.style.border = '';
+    });
+
+    target.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        target.style.backgroundColor = '';
+
+        const files = e.dataTransfer.files; 
+        if (files.length > 0) {
+            console.log(files[0]);
+            window.alert("Loading file "+files[0]);
+            uploadFile(files[0]);
+        };
+
+        // uploadFile("Hellow world!!");
+        //uploadFile("Non-existent-file");
+    });
+
+    function uploadFile(file) {
+        const formData = new FormData();
+        formData.append("taskfile", file);
+        formData.append("randomfieldname", "soimethingelse");
+        
+
+        fetch("/upload", {
+            method: "POST",
+            body: formData
+        })
+        .then(response => {
+            if (response.redirected) {
+                window.location.href = response.url;  // Follow redirect to show feedback
+            } else {
+                return response.text().then(text => alert("Upload failed: " + text));
+            }
+        })
+        .catch(err => {
+            alert("Error uploading file: " + err);
+        });
+    }
+});
 </script>
 {% endblock %}
 
@@ -114,9 +178,20 @@ function handleDrop(event, targetTaskId) {
         <input type="text" name="content" placeholder="Enter a task" required>
         <input type="submit" value="Add Task">
     </form>
+    <form action="/upload" method="POST" enctype="multipart/form-data" class="add-form">
+        <input type="file" name="taskfile" accept=".txt,.csv,.xlsx" required>
+        <input type="submit" value="Upload File">
+    </form>
+
+    {% if request.args.get('added') %}
+        <div style="color: green; font-weight: bold; margin-bottom: 10px;">
+            ✅ {{ request.args.get('added') }} task{{ 's' if request.args.get('added')|int > 1 else '' }} added successfully!
+        </div>
+    {% endif %}
+
 
     {% if tasklist %}
-    <div class="table-container">
+    <div id="tasktable" class="table-container">
         <table>
             <thead>
                 <tr>
