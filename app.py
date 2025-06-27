@@ -1,6 +1,10 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timezone
+
+import csv
+from io import StringIO
+import pandas as pd
 from dotenv import load_dotenv
 import os
 
@@ -10,6 +14,7 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 db = SQLAlchemy(app)
+
 
 class Todo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -28,21 +33,16 @@ with app.app_context():
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
-        task_content = request.form["content"].strip()
-        task_category = request.form.get("taskcategory", "").strip()
-        if not task_content:
+        task_content = request.form.get("content", "").strip()
+        if task_content:
+            try:
+                db.session.add(Todo(content=task_content, date_created=datetime.now(timezone.utc)))
+                db.session.commit()
+                return redirect(url_for("index", added=1))
+            except Exception as e:
+                return f"There was an issue adding your task: {str(e)}"
+        else:
             return "Task content cannot be empty."
-        new_task = Todo(
-            content=task_content,
-            taskcategory=task_category,
-            date_created=datetime.now(timezone.utc)
-        )
-        try:
-            db.session.add(new_task)
-            db.session.commit()
-            return redirect(url_for("index"))
-        except Exception as e:
-            return f"There was an issue adding your task: {str(e)}"
     else:
         sort = request.args.get("sort", "default")
         by = request.args.get("by", "content")
@@ -62,6 +62,49 @@ def index():
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
         tasks = pagination.items
         return render_template("index.html", tasklist=tasks, sort=sort, by=by, pagination=pagination)
+
+@app.route("/upload", methods=["POST"])
+def upload():
+    uploaded_file = request.files.get("taskfile")
+    added_count = 0
+
+    if uploaded_file and uploaded_file.filename != "":
+        filename = uploaded_file.filename.lower()
+
+        try:
+            if filename.endswith(".txt"):
+                lines = uploaded_file.read().decode("utf-8").splitlines()
+                for line in lines:
+                    clean_line = line.strip()
+                    if clean_line:
+                        db.session.add(Todo(content=clean_line, date_created=datetime.now(timezone.utc)))
+                        added_count += 1
+
+            elif filename.endswith(".csv"):
+                file_text = uploaded_file.read().decode("utf-8")
+                reader = csv.reader(StringIO(file_text))
+                for row in reader:
+                    if row and row[0].strip():
+                        db.session.add(Todo(content=row[0].strip(), date_created=datetime.now(timezone.utc)))
+                        added_count += 1
+
+            elif filename.endswith(".xlsx"):
+                df = pd.read_excel(uploaded_file)
+                for val in df.iloc[:, 0]:
+                    if pd.notnull(val) and str(val).strip() != "":
+                        db.session.add(Todo(content=str(val).strip(), date_created=datetime.now(timezone.utc)))
+                        added_count += 1
+
+            else:
+                return "Unsupported file type."
+
+            db.session.commit()
+            return redirect(url_for("index", added=added_count))
+
+        except Exception as e:
+            return f"There was an issue uploading your file: {str(e)}"
+    
+    return "No file uploaded."
 
 @app.route("/update_task/<int:id>", methods=["POST"])
 def update_task(id):
